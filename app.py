@@ -332,7 +332,7 @@ with tabs[1]:
                 "Exec Time (s)": s.get("execution_time", 0.0),
             })
 
-        st.dataframe(table_rows, use_container_width=True, height=260)
+        st.dataframe(table_rows, width="stretch", height=260)
 
         # Detailed Sample Inspector
         st.subheader("Sample Detail Inspector")
