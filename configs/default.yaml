@@ -1,0 +1,47 @@
+# ============================================================
+# Usage-Semantic Hallucination Detection — Project Configuration
+# ============================================================
+
+model:
+  name: "Qwen/Qwen2.5-Coder-1.5B-Instruct"   # bump to -7B-Instruct for full run
+  quantization: null                            # set to "4bit" when using 7B
+  max_new_tokens: 256
+  device_map: "auto"
+
+generation:
+  n_samples_per_task: 10
+  temperature: 0.8
+  top_p: 0.95
+  top_k_logprobs: 10
+  seed: 42
+
+dataset:
+  source: "bigcodebench/bigcodebench"           # HuggingFace Hub dataset ID
+  variant: "complete"                            # use Complete, NOT Instruct
+  filter_libraries:
+    - "pandas"
+    - "requests"
+    - "os"
+    - "json"
+  pilot_task_ids: []                             # populated after filtering
+  pilot_task_count: 10
+  full_task_count: 150
+
+sandbox:
+  docker_image: "python:3.11-slim"
+  timeout_seconds: 30
+  memory_limit: "512m"
+  cpus: "1"
+  network: "none"
+
+classifier:
+  n_splits: 5
+  model: "logistic_regression"                   # or "mlp"
+  class_weight: "balanced"
+  max_iter: 1000
+
+paths:
+  raw_tasks: "data/raw_tasks"
+  generations: "data/generations"
+  labels: "data/labels"
+  pilot: "data/pilot"
