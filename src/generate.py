@@ -79,12 +79,16 @@ def load_model(model_key: str = "1.5B"):
     }
 
     if config["quantize"]:
-        from transformers import BitsAndBytesConfig
-        load_kwargs["quantization_config"] = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_quant_type="nf4",
-        )
+        if not torch.cuda.is_available():
+            print("  [WARN] 4-bit quantization (BitsAndBytes) requires an NVIDIA CUDA GPU.")
+            print("         Running in standard float16 on Apple Silicon / CPU instead.\n")
+        else:
+            from transformers import BitsAndBytesConfig
+            load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4",
+            )
 
     model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
     model.eval()
@@ -94,6 +98,8 @@ def load_model(model_key: str = "1.5B"):
         mem_used = torch.cuda.memory_allocated() / 1024**3
         mem_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
         print(f"  GPU memory: {mem_used:.1f} / {mem_total:.1f} GB used\n")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        print("  Using Apple Silicon GPU (Metal Performance Shaders - MPS)\n")
 
     return tokenizer, model
 
@@ -260,6 +266,8 @@ def main():
                         help="Overwrite existing generations with new token budget")
     parser.add_argument("--quantize", action="store_true",
                         help="Force 4-bit quantization (for smaller GPUs)")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Limit number of tasks to process (e.g. 50)")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -272,6 +280,8 @@ def main():
 
     # Load tasks
     tasks = load_tasks(pilot=args.pilot)
+    if args.limit is not None and args.limit > 0:
+        tasks = tasks[:args.limit]
 
     # Setup output directory
     mode_label = "pilot" if args.pilot else "full"
@@ -344,6 +354,8 @@ def main():
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        elif hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
 
     elapsed = time.time() - start_time
 
