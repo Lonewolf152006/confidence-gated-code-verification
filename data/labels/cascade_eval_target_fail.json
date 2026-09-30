@@ -1,0 +1,163 @@
+{
+  "target_col": "target_fail",
+  "pilot_warning": "[PILOT-SCALE RESULT (10 tasks) -- NOT YET VALIDATED AT FULL SCALE, treat as provisional]",
+  "unique_task_groups": 10,
+  "pure_cheap_router": {
+    "tau_accept": 0.5,
+    "tau_reject": 0.5,
+    "escalation_rate": 0.0,
+    "cost_saved": 100.0,
+    "accuracy": 86.0,
+    "f1": 0.922,
+    "precision": 0.874,
+    "recall": 0.976,
+    "n_escalated": 0,
+    "total_samples": 100
+  },
+  "always_escalate_specialist": {
+    "tau_accept": -0.01,
+    "tau_reject": 1.01,
+    "escalation_rate": 100.0,
+    "cost_saved": 0.0,
+    "accuracy": 80.0,
+    "f1": 0.884,
+    "precision": 0.874,
+    "recall": 0.894,
+    "n_escalated": 100,
+    "total_samples": 100
+  },
+  "cascade_balanced": {
+    "tau_accept": 0.3,
+    "tau_reject": 0.75,
+    "escalation_rate": 25.0,
+    "cost_saved": 75.0,
+    "accuracy": 83.0,
+    "f1": 0.904,
+    "precision": 0.87,
+    "recall": 0.941,
+    "n_escalated": 25,
+    "total_samples": 100
+  },
+  "cascade_efficient": {
+    "tau_accept": 0.4,
+    "tau_reject": 0.85,
+    "escalation_rate": 39.0,
+    "cost_saved": 61.0,
+    "accuracy": 82.0,
+    "f1": 0.897,
+    "precision": 0.876,
+    "recall": 0.918,
+    "n_escalated": 39,
+    "total_samples": 100
+  },
+  "tradeoff_sweep": [
+    {
+      "tau_accept": 0.2,
+      "tau_reject": 0.7,
+      "escalation_rate": 22.0,
+      "cost_saved": 78.0,
+      "accuracy": 82.0,
+      "f1": 0.899,
+      "precision": 0.86,
+      "recall": 0.941,
+      "n_escalated": 22,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.2,
+      "tau_reject": 0.8,
+      "escalation_rate": 31.0,
+      "cost_saved": 69.0,
+      "accuracy": 84.0,
+      "f1": 0.909,
+      "precision": 0.879,
+      "recall": 0.941,
+      "n_escalated": 31,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.2,
+      "tau_reject": 0.9,
+      "escalation_rate": 55.0,
+      "cost_saved": 45.0,
+      "accuracy": 82.0,
+      "f1": 0.897,
+      "precision": 0.876,
+      "recall": 0.918,
+      "n_escalated": 55,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.3,
+      "tau_reject": 0.7,
+      "escalation_rate": 22.0,
+      "cost_saved": 78.0,
+      "accuracy": 82.0,
+      "f1": 0.899,
+      "precision": 0.86,
+      "recall": 0.941,
+      "n_escalated": 22,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.3,
+      "tau_reject": 0.8,
+      "escalation_rate": 31.0,
+      "cost_saved": 69.0,
+      "accuracy": 84.0,
+      "f1": 0.909,
+      "precision": 0.879,
+      "recall": 0.941,
+      "n_escalated": 31,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.3,
+      "tau_reject": 0.9,
+      "escalation_rate": 55.0,
+      "cost_saved": 45.0,
+      "accuracy": 82.0,
+      "f1": 0.897,
+      "precision": 0.876,
+      "recall": 0.918,
+      "n_escalated": 55,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.4,
+      "tau_reject": 0.7,
+      "escalation_rate": 20.0,
+      "cost_saved": 80.0,
+      "accuracy": 81.0,
+      "f1": 0.893,
+      "precision": 0.859,
+      "recall": 0.929,
+      "n_escalated": 20,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.4,
+      "tau_reject": 0.8,
+      "escalation_rate": 29.0,
+      "cost_saved": 71.0,
+      "accuracy": 83.0,
+      "f1": 0.903,
+      "precision": 0.878,
+      "recall": 0.929,
+      "n_escalated": 29,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.4,
+      "tau_reject": 0.9,
+      "escalation_rate": 53.0,
+      "cost_saved": 47.0,
+      "accuracy": 81.0,
+      "f1": 0.89,
+      "precision": 0.875,
+      "recall": 0.906,
+      "n_escalated": 53,
+      "total_samples": 100
+    }
+  ]
+}

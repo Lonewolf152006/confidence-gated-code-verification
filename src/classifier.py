@@ -43,7 +43,9 @@ FEATURE_GROUPS = {
         "mean_seq_entropy", "max_seq_entropy", "std_seq_entropy",
         "entropy_contrast", "entropy_ratio", "pct_high_entropy",
         "decision_token_ratio", "task_usage_diversity",
-        "n_api_calls", "ast_depth", "ast_node_count", "code_chars", "n_tokens"
+        "n_api_calls", "ast_depth", "ast_node_count", "code_chars", "n_tokens",
+        "ast_misuse_flag", "ast_misuse_count", "def_use_deferred_count",
+        "has_subscript_on_call", "has_invalid_type_call"
     ],
     "decision_entropy_only": [
         "mean_decision_entropy", "max_decision_entropy", "std_decision_entropy",
@@ -57,6 +59,15 @@ FEATURE_GROUPS = {
     ],
     "ast_complexity_only": [
         "n_api_calls", "ast_depth", "ast_node_count", "code_chars", "n_tokens"
+    ],
+    "ast_def_use_only": [
+        "ast_misuse_flag", "ast_misuse_count", "def_use_deferred_count",
+        "has_subscript_on_call", "has_invalid_type_call"
+    ],
+    "ast_combined": [
+        "n_api_calls", "ast_depth", "ast_node_count", "code_chars", "n_tokens",
+        "ast_misuse_flag", "ast_misuse_count", "def_use_deferred_count",
+        "has_subscript_on_call", "has_invalid_type_call"
     ],
 }
 

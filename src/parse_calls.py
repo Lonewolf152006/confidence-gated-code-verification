@@ -253,57 +253,10 @@ def extract_api_calls(code: str) -> list[APICall]:
 def check_code_for_misuse(code: str) -> list[dict]:
     """
     Analyzes code using AST to identify syntactic/usage-semantic intent misuses.
-    Returns a list of dicts describing any detected misuse patterns.
+    Delegates to src.label_taxonomy.check_code_for_misuse for the full pattern suite.
     """
-    misuses = []
-    try:
-        calls = extract_api_calls(code)
-    except Exception:
-        return []
-
-    REQUESTS_CALLS = {"requests.get", "requests.post", "requests.put", "requests.delete", "requests.request"}
-
-    for call in calls:
-        # Check 1: Requests response subscripted directly without calling .json()
-        if any(call.full_expr.startswith(rc) for rc in REQUESTS_CALLS) or call.full_expr in REQUESTS_CALLS:
-            for u in call.usage_points:
-                if u.kind == "[subscript]" or u.kind.startswith("["):
-                    misuses.append({
-                        "call": call.full_expr,
-                        "line": u.lineno,
-                        "misuse_type": "requests_subscript_without_json",
-                        "description": f"Direct subscript {u.source} on Response object without calling .json()",
-                    })
-                elif u.kind.startswith(".split"):
-                    misuses.append({
-                        "call": call.full_expr,
-                        "line": u.lineno,
-                        "misuse_type": "requests_split_on_response",
-                        "description": f"String operation {u.kind} directly on Response object",
-                    })
-
-        # Check 2: os.listdir return value treated as dictionary mapping
-        if call.full_expr == "os.listdir":
-            for u in call.usage_points:
-                if u.kind in (".keys()", ".values()", ".items()", "[subscript]") or u.kind.startswith((".items", ".keys", ".values", "[")):
-                    misuses.append({
-                        "call": call.full_expr,
-                        "line": u.lineno,
-                        "misuse_type": "os_listdir_treated_as_mapping",
-                        "description": f"os.listdir return value consumed as mapping: {u.kind}",
-                    })
-
-        # Check 3: Chained usage misuse directly on call site
-        if call.consumed_by == "[subscript]" and any(call.full_expr.startswith(rc) for rc in REQUESTS_CALLS):
-            if not any(m["call"] == call.full_expr and m["misuse_type"] == "requests_subscript_without_json" for m in misuses):
-                misuses.append({
-                    "call": call.full_expr,
-                    "line": call.lineno,
-                    "misuse_type": "requests_subscript_without_json",
-                    "description": "Direct chained subscript on requests call result",
-                })
-
-    return misuses
+    from src.label_taxonomy import check_code_for_misuse as _check
+    return _check(code)
 
 
 if __name__ == "__main__":

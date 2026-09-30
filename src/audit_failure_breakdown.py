@@ -37,10 +37,13 @@ def run_audit(labels_path: Path):
     print(f"  Total Evaluated: {total_samples} samples across {len(set(s['task_id'] for s in samples))} unique tasks")
     print("=" * 80)
 
+    intent_misuse_samples = sum(1 for s in samples if s.get("label", {}).get("is_intent_misuse", False))
+
     print("\n--- 1. High-Level Outcome Summary ---")
-    print(f"  Passed:     {passed_samples:3d} / {total_samples} ({passed_samples / total_samples * 100:.1f}%)")
-    print(f"  Failed:     {failed_samples:3d} / {total_samples} ({failed_samples / total_samples * 100:.1f}%)")
-    print(f"  Timed Out:  {timed_out_samples:3d} / {total_samples} ({timed_out_samples / total_samples * 100:.1f}%)")
+    print(f"  Passed:                {passed_samples:3d} / {total_samples} ({passed_samples / total_samples * 100:.1f}%)")
+    print(f"  Failed:                {failed_samples:3d} / {total_samples} ({failed_samples / total_samples * 100:.1f}%)")
+    print(f"  Timed Out:             {timed_out_samples:3d} / {total_samples} ({timed_out_samples / total_samples * 100:.1f}%)")
+    print(f"  Intent Misuse Flagged: {intent_misuse_samples:3d} / {total_samples} ({intent_misuse_samples / total_samples * 100:.1f}%)")
 
     # Failure category distribution
     category_counts = Counter()
@@ -56,6 +59,8 @@ def run_audit(labels_path: Path):
         notes = ""
         if cat == "NONE":
             notes = "Passed all unit test assertions cleanly"
+        elif cat == "USAGE_SEMANTIC_MISUSE":
+            notes = "Target Intent Misuse: valid API name, wrong return type/usage assumption"
         elif cat == "OTHER_RUNTIME_ERROR":
             notes = "Runtime exceptions (NameError, FileNotFoundError, etc.)"
         elif cat == "ASSERTION_ERROR":

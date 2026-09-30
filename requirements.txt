@@ -22,3 +22,5 @@ datasets>=2.18
 docker>=7.0
 requests>=2.31
 responses>=0.25
+flask>=3.0
+flask_restful>=0.3.10

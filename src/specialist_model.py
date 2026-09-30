@@ -41,7 +41,10 @@ SIGNAL_COLS = [
     "mean_seq_entropy", "max_seq_entropy", "std_seq_entropy",
     "entropy_contrast", "entropy_ratio", "pct_high_entropy",
     "decision_token_ratio", "task_usage_diversity",
-    "n_api_calls", "ast_depth", "ast_node_count", "code_chars", "n_tokens"
+    "n_api_calls", "ast_depth", "ast_node_count", "code_chars", "n_tokens",
+    # AST Def-Use Violation Indicators
+    "ast_misuse_flag", "ast_misuse_count", "def_use_deferred_count",
+    "has_subscript_on_call", "has_invalid_type_call",
 ]
 
 
@@ -156,6 +159,7 @@ class SpecialistVerifier:
 def train_specialist(
     features_path: Path,
     labels_path: Path,
+    target_col: str = "target_fail",
     epochs: int = 60,
     batch_size: int = 16,
     lr: float = 0.003,
@@ -164,6 +168,7 @@ def train_specialist(
     """Train specialist verifier with GroupKFold evaluation."""
     print(f"\n{'=' * 75}")
     print(f"  Training Distilled Specialist Verifier (Focal Loss + Code Features)")
+    print(f"  Target: {target_col}")
     print(f"{'=' * 75}")
 
     with open(features_path, encoding="utf-8") as f:
@@ -187,7 +192,7 @@ def train_specialist(
 
         X_tab_raw.append(row_feats)
         code_texts.append(code_clean)
-        y_raw.append(int(r["target_fail"]))
+        y_raw.append(int(r[target_col]))
         groups.append(r["task_id"])
 
     X_tab_raw = np.array(X_tab_raw, dtype=float)
@@ -301,6 +306,13 @@ def main():
     parser.add_argument("--features", type=str, default="data/labels/pilot_1.5B_features.json")
     parser.add_argument("--labels", type=str, default="data/labels/pilot_1.5B_labels.json")
     parser.add_argument("--save", type=str, default="data/models/specialist_model.pt")
+    parser.add_argument(
+        "--target",
+        type=str,
+        default="target_fail",
+        choices=["target_fail", "target_intent_misuse"],
+        help="Target prediction column (default: target_fail)",
+    )
     parser.add_argument("--epochs", type=int, default=60)
     args = parser.parse_args()
 
@@ -308,7 +320,7 @@ def main():
     lab_p = PROJECT_ROOT / args.labels
     save_p = PROJECT_ROOT / args.save
 
-    train_specialist(feat_p, lab_p, epochs=args.epochs, save_path=save_p)
+    train_specialist(feat_p, lab_p, target_col=args.target, epochs=args.epochs, save_path=save_p)
 
 
 if __name__ == "__main__":

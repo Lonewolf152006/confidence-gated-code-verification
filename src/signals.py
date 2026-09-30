@@ -29,6 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.parse_calls import extract_api_calls, APICall
+from src.label_taxonomy import check_code_for_misuse
 
 
 def compute_token_entropy(topk_step: dict) -> float:
@@ -212,7 +213,24 @@ def extract_sample_features(
     ast_depth, ast_node_count = get_ast_complexity(clean_code)
     code_chars = len(clean_code)
 
-    # 5. Ground truth labels
+    # 5. AST Def-Use Violation Indicators
+    misuse_records = check_code_for_misuse(clean_code)
+    ast_misuse_flag = 1.0 if len(misuse_records) > 0 else 0.0
+    ast_misuse_count = float(len(misuse_records))
+
+    # Deferred def-use usages
+    total_deferred_usages = sum(len(c.usage_points) for c in calls)
+    has_subscript_on_call = 1.0 if any(
+        c.consumed_by == "[subscript]" or any(u.kind == "[subscript]" for u in c.usage_points)
+        for c in calls
+    ) or any(m.get("misuse_type") in ("requests_subscript_without_json", "string_key_on_dict_key_iteration") for m in misuse_records) else 0.0
+
+    has_invalid_type_call = 1.0 if any(
+        m.get("misuse_type") in ("hexdigest_on_bytes", "reshape_on_dict_list", "pandas_obsolete_sort", "numpy_abs_vector_norm_misuse", "dictwriter_non_dict_row")
+        for m in misuse_records
+    ) else 0.0
+
+    # 6. Ground truth labels
     passed = sample.get("passed", False)
     label_info = sample.get("label", {})
     failure_category = label_info.get("failure_category", "NONE" if passed else "UNKNOWN")
@@ -240,6 +258,12 @@ def extract_sample_features(
         "ast_node_count": ast_node_count,
         "code_chars": code_chars,
         "n_tokens": n_tokens,
+        # AST Def-Use Violation Indicators
+        "ast_misuse_flag": ast_misuse_flag,
+        "ast_misuse_count": ast_misuse_count,
+        "def_use_deferred_count": float(total_deferred_usages),
+        "has_subscript_on_call": has_subscript_on_call,
+        "has_invalid_type_call": has_invalid_type_call,
         # Ground Truth Targets
         "passed": passed,
         "target_fail": 1 if not passed else 0,

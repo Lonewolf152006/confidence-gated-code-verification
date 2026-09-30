@@ -1,0 +1,134 @@
+% ==============================================================================
+% Related Work and Methodology Draft for Confidence-Gated Code Verification
+% Formatted for IEEE / ACM Double-Column Format
+% ==============================================================================
+
+\section{Related Work}
+\label{sec:related_work}
+
+Our work bridges four emerging frontiers in machine learning, uncertainty quantification, and software verification:
+
+\subsection{Lightweight and Resource-Constrained Hallucination Detection}
+Hallucination detection in large language models (LLMs) has predominantly relied on heavy computational paradigms, such as multi-agent consensus debate, fine-tuned 70B parameter LLM-as-a-judge evaluators, or high-dimensional hidden-state probing. Recently, Faujdar and Kadvani~\cite{faujdar2026gpu} investigated the practical boundaries of resource-constrained deployment in \emph{``How Far Can You Get Without a GPU?''}, demonstrating that lightweight, CPU-feasible feature ensembles (e.g., token overlap, lightweight cross-encoders, and NLI classifiers) can match GPU-bound detectors on closed-domain benchmarks. 
+
+Concurrently, Nguyen et al.~\cite{nguyen2026probabilities} challenged the necessity of multi-sample generation in \emph{``Probabilities Are All You Need: A Probability-Only Approach to Uncertainty Estimation''}, proving that single-pass output probabilities over top-$K$ candidate tokens can approximate predictive entropy without incurring the latency and compute of sampling multiple responses ($N=10$). 
+
+Our work adapts this lightweight, single-pass philosophy to program synthesis. Unlike free-form natural language, code exhibits formal Context-Free Grammar (CFG) structures and deterministic call interfaces. We exploit this property to extract decision-point token entropy and Abstract Syntax Tree (AST) structural features in a single forward pass, providing zero-GPU verification within milliseconds on consumer hardware.
+
+\subsection{Uncertainty Estimation and Beyond-Entropy Signals}
+Uncertainty quantification via Shannon entropy and semantic equivalence clustering~\cite{kuhn2023semantic} has emerged as the standard approach for detecting factual hallucinations. However, post-softmax probability distributions frequently suffer from poor calibration and overconfidence. 
+
+In \emph{``Semantic Energy: Detecting LLM Hallucination Beyond Entropy''}, Ma et al.~\cite{ma2025semantic} demonstrated that standard semantic entropy collapses when an LLM operates in an overconfident regime, proposing unnormalized energy metrics from intermediate representations to capture epistemic uncertainty. Similarly, Lee and Yoshinaga~\cite{lee2026logit} showed that analyzing layer-wise semantic logit trajectories via a compact Multi-Layer Perceptron (MLP) effectively discriminates hallucinations without storing or processing dense 4096-dimensional hidden states.
+
+In this work, we uncover a critical manifestation of this phenomenon in code generation: the \emph{``Confidently Wrong''} paradox. While token-level Shannon entropy effectively separates general syntactic degradation ($\text{AUROC} \approx 0.855$), it completely inverts when applied to usage-semantic intent misuse ($\text{AUROC} \approx 0.389$). Because semantic hallucinations stem from false interface beliefs rather than decoding hesitation, models generate contract-violating code with near-zero token entropy.
+
+\subsection{Adaptive Token Selection and Localized Probing}
+A major limitation of sequence-level uncertainty metrics is token dilution: averaging predictive entropy across hundreds of boilerplate tokens (indentation, keywords, trivial operators) washes out the critical error signal. 
+
+To mitigate this in unstructured NLP, Niu, Haddadi, and Pang~\cite{niu2025robust} introduced \emph{HaMI} (\emph{``Robust Hallucination Detection in LLMs via Adaptive Token Selection''}, NeurIPS 2025), formulating hallucination detection as Multiple Instance Learning (MIL) over token representations to isolate the sparse subset of tokens driving factual divergence. In parallel, Sun et al.~\cite{sun2026adaptive} (AAAI 2026) developed an adaptive Bayesian estimation framework to dynamically adjust sampling budgets based on variance convergence.
+
+In program synthesis, token selection does not require heuristic statistical pooling. Because source code conforms to formal grammars, we introduce deterministic \emph{Decision-Point Alignment}: token character offsets are aligned directly with AST Call and Def-Use sites, isolating predictive entropy precisely at the interface where API return values are manipulated.
+
+\subsection{Formal Verification and Theoretical Impossibility Limits}
+Can purely statistical models ever achieve sound hallucination detection? In \emph{``Is Automated Hallucination Detection Fundamentally Possible?''}, Karbasi et al.~\cite{karbasi2025impossibility} (Yale University) established a theoretical equivalence between hallucination detection and classical language identification in the limit~\cite{gold1967language,angluin1980inductive}. They proved that black-box statistical learners cannot guarantee bounded detection error over unconstrained domains without access to formal structural verification oracles.
+
+This theoretical boundary directly explains why pure neural or entropy scoring fails on semantic code misuse. Our architecture introduces a \emph{Neuro-Symbolic} cascade: statistical machine learning models (Random Forests, Gradient Boosted Decision Trees, and Focal-Loss Neural Networks) filter the probabilistic fluency of code, while formal AST Def-Use contract checkers enforce deterministic invariant boundaries over known library interfaces.
+
+% ==============================================================================
+% SECTION: METHODOLOGY
+% ==============================================================================
+
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Problem Formulation and Failure Taxonomy}
+Let $x$ denote an input programming specification (docstring and function signature), and let $\mathbf{y} = (y_1, y_2, \dots, y_T)$ denote an autoregressive code sequence generated by an LLM $P_\theta(y_t \mid y_{<t}, x)$. At each generation step $t$, the model emits top-$K$ candidate tokens and unnormalized log-probabilities $(w_{t,k}, p_{t,k})_{k=1}^K$. The normalized Shannon entropy at step $t$ is computed as:
+\begin{equation}
+    H(t) = - \sum_{k=1}^K \tilde{p}_{t,k} \log_2 \tilde{p}_{t,k}, \quad \text{where } \tilde{p}_{t,k} = \frac{p_{t,k}}{\sum_{j=1}^K p_{t,j}}
+\end{equation}
+
+We define two ground-truth evaluation targets based on sandboxed unit test execution:
+\begin{enumerate}
+    \item \textbf{General Failure ($Y_{\text{fail}} \in \{0, 1\}$)}: Execution failure encompassing syntax errors, uncaught runtime exceptions, and assertion mismatches.
+    \item \textbf{Usage-Semantic Intent Misuse ($Y_{\text{misuse}} \in \{0, 1\}$)}: Grammatically sound code that invokes valid third-party API identifiers but violates the dynamic return-type contract or lifecycle assumptions of the library.
+\end{enumerate}
+
+\subsection{The Confidence-Gated Verification Cascade}
+The verification pipeline comprises three sequential layers designed to minimize verification latency and compute:
+
+\subsubsection{Layer 1: Near-Zero-Cost Feature Extraction}
+From completion $\mathbf{y}$, we extract a 21-dimensional feature vector $\mathbf{z} \in \mathbb{R}^{21}$ across four domains:
+\begin{itemize}
+    \item \textbf{Decision-Point Entropy (6 features)}: Mean $\bar{H}_{dp}$, maximum $\max H_{dp}$, and standard deviation $\sigma(H_{dp})$ over tokens immediately succeeding AST Call and Def-Use sites; entropy contrast $\Delta H = \bar{H}_{dp} - \bar{H}_{seq}$; entropy ratio $R_H$; and decision token fraction $r_{tok}$.
+    \item \textbf{Sequence Uncertainty (4 features)}: Sequence-wide mean $\bar{H}_{seq}$, maximum $\max H_{seq}$, standard deviation $\sigma(H_{seq})$, and high-entropy token fraction $\%H_{>2.0}$.
+    \item \textbf{Cross-Sample Usage Diversity (1 feature)}: Shannon diversity $H_{div}$ over downstream API consumption patterns across $N$ generations.
+    \item \textbf{AST Complexity \& Contracts (10 features)}: AST depth, total node count, code character length, token count, API call count; and 5 explicit AST Def-Use indicators ($I_{misuse}$, $C_{misuse}$, $N_{def\_use}$, $I_{subscript}$, $I_{type\_invalid}$).
+\end{itemize}
+
+\subsubsection{Layer 2: Fast Confidence Router}
+A lightweight ensemble classifier (Random Forest or HistGradientBoosting) evaluates $\mathbf{z}$ to produce a calibrated failure probability $p_{\text{cheap}} \in [0, 1]$. Triage decisions follow dual confidence thresholds:
+\begin{equation}
+    \text{Triage}(p_{\text{cheap}}) = \begin{cases}
+        \text{FAST\_ACCEPT} & \text{if } p_{\text{cheap}} \le \tau_{\text{accept}} \\
+        \text{FAST\_REJECT} & \text{if } p_{\text{cheap}} \ge \tau_{\text{reject}} \\
+        \text{ESCALATE}     & \text{if } \tau_{\text{accept}} < p_{\text{cheap}} < \tau_{\text{reject}}
+    \end{cases}
+\end{equation}
+By setting $\tau_{\text{accept}} = 0.30$ and $\tau_{\text{reject}} = 0.75$, the router settles 93\% of completions with near-zero latency, circumventing test sandboxing for confident passes and obvious syntax collapse.
+
+\subsubsection{Layer 3: Distilled Specialist Verifier}
+Borderline cases $(\tau_{\text{accept}} < p_{\text{cheap}} < \tau_{\text{reject}})$ are escalated to Layer 3, an MLP verifier trained with Binary Focal Loss ($\gamma = 2.0$) on multi-modal inputs combining tabular signals $\mathbf{z}$ and sub-token TF-IDF $N$-grams $\mathbf{c} \in \mathbb{R}^{48}$:
+\begin{equation}
+    \mathcal{L}_{\text{FL}}(p_t) = -\alpha_t (1 - p_t)^\gamma \log(p_t)
+\end{equation}
+The focusing parameter $\gamma = 2.0$ suppresses easy negative gradients, forcing the specialist head to resolve subtle semantic contract violations.
+
+% ==============================================================================
+% SECTION: EXPERIMENTAL RESULTS
+% ==============================================================================
+
+\section{Experimental Evaluation}
+\label{sec:experiments}
+
+\begin{table*}[t]
+\centering
+\small
+\caption{Out-of-fold generalization performance across classifier architectures under 5-fold GroupKFold cross-validation grouped by task identifier (zero task leakage). Machine learning models without rules capture general failure effectively ($\text{AUROC} \approx 0.865$), while AST Def-Use contract indicators resolve the semantic misuse blind spot.}
+\label{tab:out_of_fold_benchmark}
+\begin{tabular}{l|ccc|ccc}
+\hline
+& \multicolumn{3}{c|}{\textbf{General Failure Detection ($Y_{\text{fail}}$)}} & \multicolumn{3}{c}{\textbf{Intent Misuse Detection ($Y_{\text{misuse}}$)}} \\
+\textbf{Model Architecture} & \textbf{AUROC} & \textbf{AUPRC} & \textbf{F1 Score} & \textbf{AUROC} & \textbf{AUPRC} & \textbf{F1 Score} \\
+\hline
+Logistic Regression (Balanced)   & $0.778 \pm 0.03$ & $0.906 \pm 0.08$ & $0.736$ & $\mathbf{1.000 \pm 0.00}$ & $\mathbf{1.000 \pm 0.00}$ & $\mathbf{1.000}$ \\
+Random Forest (100 Trees)        & $0.757 \pm 0.05$ & $0.892 \pm 0.08$ & $0.825$ & $\mathbf{1.000 \pm 0.00}$ & $\mathbf{1.000 \pm 0.00}$ & $0.778$ \\
+HistGradientBoosting             & $0.855 \pm 0.06$ & $0.952 \pm 0.03$ & $\mathbf{0.845}$ & $0.556 \pm 0.33$ & $0.431 \pm 0.40$ & $0.000$ \\
+Multi-Layer Perceptron (MLP)     & $\mathbf{0.865 \pm 0.05}$ & $\mathbf{0.960 \pm 0.02}$ & $0.773$ & $0.792 \pm 0.30$ & $0.731 \pm 0.38$ & $0.667$ \\
+\hline
+Baseline (Naive Prevalence)      & — & ($0.750$) & — & — & ($0.117$) & — \\
+\hline
+\end{tabular}
+\end{table*}
+
+\begin{table}[t]
+\centering
+\small
+\caption{Confidence Cascade Tradeoff Sweep on Intent Misuse ($Y_{\text{misuse}}$) under leak-free out-of-fold evaluation. The balanced cascade reduces verification compute by 93\% while maintaining optimal out-of-fold classification accuracy.}
+\label{tab:cascade_sweep}
+\begin{tabular}{l|cccc}
+\hline
+\textbf{Routing Strategy} & \textbf{Escalation \%} & \textbf{Cost Saved \%} & \textbf{Accuracy \%} & \textbf{F1 Score} \\
+\hline
+Pure Cheap Router (0\% Escalate)     & 0.0\%   & 100.0\% & 97.0\%  & 0.727 \\
+Always-Escalate (100\% Specialist)   & 100.0\% & 0.0\%   & 100.0\% & 1.000 \\
+Confidence Cascade (Balanced)        & 7.0\%   & 93.0\%  & 100.0\% & 1.000 \\
+Confidence Cascade (High-Efficiency) & 5.0\%   & 95.0\%  & 98.0\%  & 0.833 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Empirical Analysis & Statistical Framing}
+As documented in Table~\ref{tab:out_of_fold_benchmark} and Table~\ref{tab:cascade_sweep}, our balanced cascade reduces sandbox execution requirements by 93\% while achieving an empirical F1-score of 1.000 on Intent Misuse. 
+
+We explicitly contextualize this metric within its statistical boundaries:
+In our 100-sample pilot benchmark, ground-truth Intent Misuse constitutes 7\% of samples ($N=7$). Our AST Def-Use semantic rules successfully flag all 7 samples with zero false positives on the 93 non-misuse completions, yielding an empirical recall of 100\% with a 95\% Wilson score confidence interval of $[64.6\%, 100.0\%]$. Rather than asserting a generalized 100\% guarantee over all future code, this demonstrates that \emph{anchoring probabilistic token signals with deterministic AST def-use tracking resolves the empirical blind spot of semantic entropy}, providing a scalable verification framework for production software systems.

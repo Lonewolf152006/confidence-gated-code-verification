@@ -1,0 +1,163 @@
+{
+  "target_col": "target_intent_misuse",
+  "pilot_warning": "[PILOT-SCALE RESULT (10 tasks) -- NOT YET VALIDATED AT FULL SCALE, treat as provisional]",
+  "unique_task_groups": 10,
+  "pure_cheap_router": {
+    "tau_accept": 0.5,
+    "tau_reject": 0.5,
+    "escalation_rate": 0.0,
+    "cost_saved": 100.0,
+    "accuracy": 97.0,
+    "f1": 0.727,
+    "precision": 1.0,
+    "recall": 0.571,
+    "n_escalated": 0,
+    "total_samples": 100
+  },
+  "always_escalate_specialist": {
+    "tau_accept": -0.01,
+    "tau_reject": 1.01,
+    "escalation_rate": 100.0,
+    "cost_saved": 0.0,
+    "accuracy": 96.0,
+    "f1": 0.6,
+    "precision": 1.0,
+    "recall": 0.429,
+    "n_escalated": 100,
+    "total_samples": 100
+  },
+  "cascade_balanced": {
+    "tau_accept": 0.3,
+    "tau_reject": 0.75,
+    "escalation_rate": 7.0,
+    "cost_saved": 93.0,
+    "accuracy": 96.0,
+    "f1": 0.6,
+    "precision": 1.0,
+    "recall": 0.429,
+    "n_escalated": 7,
+    "total_samples": 100
+  },
+  "cascade_efficient": {
+    "tau_accept": 0.4,
+    "tau_reject": 0.85,
+    "escalation_rate": 5.0,
+    "cost_saved": 95.0,
+    "accuracy": 96.0,
+    "f1": 0.6,
+    "precision": 1.0,
+    "recall": 0.429,
+    "n_escalated": 5,
+    "total_samples": 100
+  },
+  "tradeoff_sweep": [
+    {
+      "tau_accept": 0.2,
+      "tau_reject": 0.7,
+      "escalation_rate": 7.0,
+      "cost_saved": 93.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 7,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.2,
+      "tau_reject": 0.8,
+      "escalation_rate": 7.0,
+      "cost_saved": 93.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 7,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.2,
+      "tau_reject": 0.9,
+      "escalation_rate": 7.0,
+      "cost_saved": 93.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 7,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.3,
+      "tau_reject": 0.7,
+      "escalation_rate": 7.0,
+      "cost_saved": 93.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 7,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.3,
+      "tau_reject": 0.8,
+      "escalation_rate": 7.0,
+      "cost_saved": 93.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 7,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.3,
+      "tau_reject": 0.9,
+      "escalation_rate": 7.0,
+      "cost_saved": 93.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 7,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.4,
+      "tau_reject": 0.7,
+      "escalation_rate": 5.0,
+      "cost_saved": 95.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 5,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.4,
+      "tau_reject": 0.8,
+      "escalation_rate": 5.0,
+      "cost_saved": 95.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 5,
+      "total_samples": 100
+    },
+    {
+      "tau_accept": 0.4,
+      "tau_reject": 0.9,
+      "escalation_rate": 5.0,
+      "cost_saved": 95.0,
+      "accuracy": 96.0,
+      "f1": 0.6,
+      "precision": 1.0,
+      "recall": 0.429,
+      "n_escalated": 5,
+      "total_samples": 100
+    }
+  ]
+}

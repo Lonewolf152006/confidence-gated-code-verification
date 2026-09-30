@@ -96,6 +96,61 @@ def list_image_files(directory: str):
 ''',
         "expected": "REJECT (Intent Misuse: list object has no attribute 'items')",
     },
+    "pandas_inplace_misuse": {
+        "name": "Pandas: None Assignment via Inplace Mutation (df = df.dropna(inplace=True))",
+        "description": "LLM assigns the return value of an inplace pandas mutation back to the DataFrame variable, setting it to None.",
+        "code": '''\
+import pandas as pd
+
+def clean_dataframe(csv_path: str):
+    df = pd.read_csv(csv_path)
+    # Intent Misuse: df.dropna(inplace=True) returns None, wiping out df
+    df = df.dropna(subset=["email"], inplace=True)
+    return df.head()
+''',
+        "expected": "REJECT (Intent Misuse: None assignment on inplace call)",
+    },
+    "requests_text_misuse": {
+        "name": "Requests: response.text() Called as Method Instead of Property",
+        "description": "LLM treats response.text as a callable function instead of a string property, causing TypeError.",
+        "code": '''\
+import requests
+
+def get_page_summary(url: str):
+    response = requests.get(url)
+    # Intent Misuse: .text is a property, not a callable function
+    raw_html = response.text()
+    return len(raw_html)
+''',
+        "expected": "REJECT (Intent Misuse: 'str' object is not callable)",
+    },
+    "pandas_append_misuse": {
+        "name": "Pandas: Obsolete df.append() Method Call (Removed in Pandas 2.0)",
+        "description": "LLM calls df.append() which was completely removed in Pandas 2.0 (should use pd.concat).",
+        "code": '''\
+import pandas as pd
+
+def combine_tables(df1: pd.DataFrame, df2: pd.DataFrame):
+    # Intent Misuse: df.append removed in Pandas 2.0+
+    combined = df1.append(df2, ignore_index=True)
+    return combined
+''',
+        "expected": "REJECT (Intent Misuse: DataFrame object has no attribute 'append')",
+    },
+    "hashlib_misuse": {
+        "name": "Hashlib: Calling .hexdigest() on Bytes Returned by .digest()",
+        "description": "LLM calls .hexdigest() on bytes instead of calling directly on the hashlib object.",
+        "code": '''\
+import hashlib
+
+def generate_checksum(data: str):
+    h = hashlib.sha256(data.encode('utf-8'))
+    # Intent Misuse: .digest() returns bytes, which has no .hexdigest() method
+    raw_digest = h.digest()
+    return raw_digest.hexdigest()
+''',
+        "expected": "REJECT (Intent Misuse: 'bytes' object has no attribute 'hexdigest')",
+    },
     "clean_requests": {
         "name": "Requests: Correct API Usage with .json() and Status Check",
         "description": "Proper usage of requests library with .raise_for_status() and .json().",
@@ -133,15 +188,30 @@ def clean_and_rank_scores(csv_path: str):
 }
 
 
+ENTROPY_DIVERSITY_COLS = [
+    "mean_decision_entropy", "max_decision_entropy", "std_decision_entropy",
+    "mean_seq_entropy", "max_seq_entropy", "std_seq_entropy",
+    "entropy_contrast", "entropy_ratio", "pct_high_entropy",
+    "decision_token_ratio", "task_usage_diversity"
+]
+
+
 def analyze_real_world_code(
     code: str,
     tau_accept: float = 0.30,
     tau_reject: float = 0.75,
-    verifier: SpecialistVerifier = None
+    verifier: SpecialistVerifier = None,
+    mode: str = "standalone",
+    generation_sample: dict = None,
 ) -> dict:
     """
-    Execute full triage across static baselines, AST def-use tracking,
+    Execute triage across static baselines, AST def-use tracking,
     and the distilled specialist model.
+
+    Explicit Modes:
+      - 'live': Full 16 features from active generation session with real logprobs.
+      - 'standalone': AST + TF-IDF only; the 11 entropy/diversity features are
+        explicitly zeroed and flagged (not silently degraded).
     """
     # 1. AST Call extraction & def-use tracking
     api_calls = extract_api_calls(code)
@@ -154,26 +224,45 @@ def analyze_real_world_code(
 
     # 3. Feature extraction for specialist model
     tabular_vec = np.zeros((1, len(SIGNAL_COLS)), dtype=np.float32)
-    feature_dict = {
-        "mean_decision_entropy": 0.5,
-        "max_decision_entropy": 0.8 if len(ast_misuses) > 0 else 0.2,
-        "std_decision_entropy": 0.2,
-        "mean_seq_entropy": 0.4,
-        "max_seq_entropy": 0.7,
-        "std_seq_entropy": 0.2,
-        "entropy_contrast": 0.4 if len(ast_misuses) > 0 else 0.0,
-        "entropy_ratio": 1.5 if len(ast_misuses) > 0 else 0.8,
-        "pct_high_entropy": 0.3 if len(ast_misuses) > 0 else 0.0,
-        "decision_token_ratio": len(api_calls) / max(len(code.split()), 1),
-        "task_usage_diversity": 0.7 if len(ast_misuses) > 0 else 0.1,
-        "n_api_calls": float(len(api_calls)),
-        "ast_depth": float(ast_depth),
-        "ast_node_count": float(ast_nodes),
-        "code_chars": float(len(code)),
-        "n_tokens": float(len(code.split())),
-    }
-    for i, col in enumerate(SIGNAL_COLS):
-        tabular_vec[0, i] = feature_dict.get(col, 0.0)
+    feature_dict = {}
+
+    if mode == "live" and generation_sample is not None:
+        # Full live mode with real generation logprobs
+        from src.signals import extract_sample_features
+        task_div = generation_sample.get("task_usage_diversity", 0.0)
+        feats = extract_sample_features(generation_sample, task_diversity=task_div)
+        for i, col in enumerate(SIGNAL_COLS):
+            val = float(feats.get(col, 0.0))
+            tabular_vec[0, i] = val
+            feature_dict[col] = val
+    else:
+        # Standalone mode: 11 entropy/diversity features are explicitly ZEROED OUT
+        mode = "standalone"
+        for col in ENTROPY_DIVERSITY_COLS:
+            feature_dict[col] = 0.0
+
+        # Compute structural AST & code length features
+        feature_dict["n_api_calls"] = float(len(api_calls))
+        feature_dict["ast_depth"] = float(ast_depth)
+        feature_dict["ast_node_count"] = float(ast_nodes)
+        feature_dict["code_chars"] = float(len(code))
+        feature_dict["n_tokens"] = float(len(code.split()))
+
+        # Compute AST def-use violation indicators
+        feature_dict["ast_misuse_flag"] = 1.0 if len(ast_misuses) > 0 else 0.0
+        feature_dict["ast_misuse_count"] = float(len(ast_misuses))
+        feature_dict["def_use_deferred_count"] = float(sum(len(c.usage_points) for c in api_calls))
+        feature_dict["has_subscript_on_call"] = 1.0 if any(
+            c.consumed_by == "[subscript]" or any(u.kind == "[subscript]" for u in c.usage_points)
+            for c in api_calls
+        ) or any(m.get("misuse_type") in ("requests_subscript_without_json", "string_key_on_dict_key_iteration") for m in ast_misuses) else 0.0
+        feature_dict["has_invalid_type_call"] = 1.0 if any(
+            m.get("misuse_type") in ("hexdigest_on_bytes", "reshape_on_dict_list", "pandas_obsolete_sort", "numpy_abs_vector_norm_misuse", "dictwriter_non_dict_row")
+            for m in ast_misuses
+        ) else 0.0
+
+        for i, col in enumerate(SIGNAL_COLS):
+            tabular_vec[0, i] = feature_dict.get(col, 0.0)
 
     # 4. Specialist model inference
     specialist_prob = 0.5
@@ -208,6 +297,8 @@ def analyze_real_world_code(
         primary_reason = f"Uncertainty score within escalation window [{tau_accept:.2f}, {tau_reject:.2f}]. Triaged for deep verification."
 
     return {
+        "mode": mode,
+        "zeroed_features_count": len(ENTROPY_DIVERSITY_COLS) if mode == "standalone" else 0,
         "verdict": verdict,
         "confidence_level": confidence_level,
         "primary_reason": primary_reason,
@@ -227,12 +318,14 @@ def analyze_real_world_code(
         "static_caught": len(pylint_hits) > 0 or len(mypy_hits) > 0,
         "ast_depth": ast_depth,
         "ast_nodes": ast_nodes,
+        "features": feature_dict,
     }
 
 
 def print_report(code: str, result: dict, name: str = "Code Snippet"):
     """Render a clean, human-readable terminal verification report."""
     verdict = result["verdict"]
+    mode = result.get("mode", "standalone")
     badge = {
         "ACCEPT": "[ ACCEPTED - CONFIDENTLY SAFE ]",
         "ESCALATE": "[ ESCALATE - BORDERLINE / SPECIALIST NEEDED ]",
@@ -242,6 +335,18 @@ def print_report(code: str, result: dict, name: str = "Code Snippet"):
     print("\n" + "=" * 80)
     print(f"  VERIFICATION REPORT: {name}")
     print("=" * 80)
+
+    if mode == "standalone":
+        print("\n" + "!" * 80)
+        print("  [WARNING] RUNNING IN STANDALONE MODE (No LLM generation logprobs provided)")
+        print("  11 of 16 features (Shannon entropy & cross-sample diversity) are zeroed out.")
+        print("  Operating on AST Def-Use rules + code TF-IDF syntax embeddings only.")
+        print("  Accuracy is expected to be lower, since it is missing most of the model's signal.")
+        print("!" * 80)
+    else:
+        print("\n  [MODE: LIVE GENERATION SESSION]")
+        print("  Full 16-feature vector evaluated (Decision-point entropy & diversity active).")
+
     print(f"\n  >>> VERDICT: {badge}")
     print(f"  Confidence:     {result['confidence_level']}")
     print(f"  Primary Reason: {result['primary_reason']}")
@@ -284,6 +389,10 @@ def main():
     parser.add_argument("--preset", choices=list(PRESETS.keys()), help="Choose a pre-configured realistic test case")
     parser.add_argument("--file", type=str, help="Path to a local .py file to inspect")
     parser.add_argument("--code", type=str, help="Direct code string to inspect")
+    parser.add_argument("--mode", choices=["standalone", "live"], default="standalone",
+                        help="Mode: 'live' (16 features with logprobs) or 'standalone' (AST + TF-IDF only, 11 features zeroed)")
+    parser.add_argument("--gen-file", type=str, help="Path to a generation JSON file to inspect in live mode")
+    parser.add_argument("--sample-idx", type=int, default=0, help="Sample index in generation JSON file (default: 0)")
     parser.add_argument("--list-presets", action="store_true", help="List all available pre-configured test presets")
     parser.add_argument("--tau-accept", type=float, default=0.30, help="Confidence router acceptance threshold (default: 0.30)")
     parser.add_argument("--tau-reject", type=float, default=0.75, help="Confidence router rejection threshold (default: 0.75)")
@@ -305,7 +414,24 @@ def main():
         except Exception as e:
             print(f"[WARN] Could not load specialist checkpoint: {e}")
 
-    if args.preset:
+    gen_sample = None
+    if args.gen_file:
+        gf = Path(args.gen_file)
+        if not gf.exists():
+            print(f"Error: Generation file not found: {gf}")
+            sys.exit(1)
+        import json
+        with open(gf, encoding="utf-8") as f:
+            g_data = json.load(f)
+        if isinstance(g_data, list) and len(g_data) > args.sample_idx:
+            gen_sample = g_data[args.sample_idx]
+            code = gen_sample.get("generated_code", "")
+            name = f"Live Generation: {gf.stem} (Sample #{args.sample_idx})"
+            args.mode = "live"
+        else:
+            print(f"Error: Invalid sample index {args.sample_idx} in {gf}")
+            sys.exit(1)
+    elif args.preset:
         preset_info = PRESETS[args.preset]
         code = preset_info["code"]
         name = f"Preset: {preset_info['name']}"
@@ -325,7 +451,14 @@ def main():
         code = preset_info["code"]
         name = f"Preset: {preset_info['name']}"
 
-    result = analyze_real_world_code(code, tau_accept=args.tau_accept, tau_reject=args.tau_reject, verifier=verifier)
+    result = analyze_real_world_code(
+        code,
+        tau_accept=args.tau_accept,
+        tau_reject=args.tau_reject,
+        verifier=verifier,
+        mode=args.mode,
+        generation_sample=gen_sample,
+    )
     print_report(code, result, name=name)
 
 

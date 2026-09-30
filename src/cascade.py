@@ -91,6 +91,7 @@ def evaluate_cascade_at_thresholds(
 def compute_outof_fold_predictions(
     df: pd.DataFrame,
     code_texts: list[str],
+    target_col: str = "target_fail",
     n_splits: int = 5,
     epochs: int = 50,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
@@ -101,7 +102,7 @@ def compute_outof_fold_predictions(
     all_features = FEATURE_GROUPS["all_features"]
     X_cheap = df[all_features].values
     X_tab_sig = df[SIGNAL_COLS].values
-    y = df["target_fail"].values
+    y = df[target_col].values
     groups = df["task_id"].values
 
     unique_groups = len(np.unique(groups))
@@ -171,10 +172,12 @@ def run_cascade_benchmark(
     features_path: Path,
     labels_path: Path,
     output_path: Path = None,
+    target_col: str = "target_fail",
     n_splits: int = 5,
 ):
     print(f"\n{'=' * 85}")
     print(f"  Confidence-Gated Verification Cascade Benchmark (Leak-Free Out-of-Fold)")
+    print(f"  Target Column: {target_col}")
     print(f"{'=' * 85}")
 
     # Load datasets
@@ -188,7 +191,9 @@ def run_cascade_benchmark(
     code_texts = [code_map.get((r["task_id"], r["sample_index"]), "").split("```")[0] for r in feat_records]
 
     # Compute strictly out-of-fold predictions
-    y, p_cheap, p_specialist, n_groups = compute_outof_fold_predictions(df, code_texts, n_splits=n_splits)
+    y, p_cheap, p_specialist, n_groups = compute_outof_fold_predictions(
+        df, code_texts, target_col=target_col, n_splits=n_splits
+    )
 
     warning_tag = f"[PILOT-SCALE RESULT ({n_groups} tasks) -- NOT YET VALIDATED AT FULL SCALE, treat as provisional]"
 
@@ -239,6 +244,7 @@ def run_cascade_benchmark(
     if output_path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         bundle = {
+            "target_col": target_col,
             "pilot_warning": warning_tag,
             "unique_task_groups": n_groups,
             "pure_cheap_router": res_cheap,
@@ -259,6 +265,13 @@ def main():
     parser.add_argument("--features", type=str, default="data/labels/pilot_1.5B_features.json")
     parser.add_argument("--labels", type=str, default="data/labels/pilot_1.5B_labels.json")
     parser.add_argument("--output", type=str, default="data/labels/cascade_evaluation.json")
+    parser.add_argument(
+        "--target",
+        type=str,
+        default="target_fail",
+        choices=["target_fail", "target_intent_misuse"],
+        help="Target prediction column (default: target_fail)",
+    )
     parser.add_argument("--splits", type=int, default=5)
     args = parser.parse_args()
 
@@ -266,7 +279,7 @@ def main():
     lab_p = PROJECT_ROOT / args.labels
     out_p = PROJECT_ROOT / args.output
 
-    run_cascade_benchmark(feat_p, lab_p, out_p, n_splits=args.splits)
+    run_cascade_benchmark(feat_p, lab_p, out_p, target_col=args.target, n_splits=args.splits)
 
 
 if __name__ == "__main__":

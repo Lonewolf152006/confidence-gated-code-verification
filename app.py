@@ -37,6 +37,7 @@ except ImportError:
 
 from test_real_world import PRESETS, analyze_real_world_code
 from src.specialist_model import SpecialistVerifier
+from src.repair import repair_code
 
 MODEL_PATH = PROJECT_ROOT / "data" / "models" / "specialist_model.pt"
 LABELS_PATH = PROJECT_ROOT / "data" / "labels" / "pilot_1.5B_labels.json"
@@ -214,8 +215,12 @@ with tabs[0]:
             default_code = PRESETS[preset_choice]["code"]
             scenario_desc = PRESETS[preset_choice]["description"]
 
+        if "last_preset" not in st.session_state or st.session_state.get("last_preset") != preset_choice:
+            st.session_state["last_preset"] = preset_choice
+            st.session_state["code_editor_text"] = default_code
+
         st.caption(f"**Scenario**: {scenario_desc}")
-        code_input = st.text_area("Python Code:", value=default_code, height=280)
+        code_input = st.text_area("Python Code:", value=st.session_state["code_editor_text"], height=280, key="code_editor_text")
         run_button = st.button("Run Verification Cascade", type="primary")
 
     with col2:
@@ -258,6 +263,28 @@ with tabs[0]:
                     st.error(f"AST Checker Flagged {len(result['ast_misuses'])} Intent Misuse(s):")
                     for m in result["ast_misuses"]:
                         st.write(f"• **Line {m['line']}**: {m['description']}")
+
+            # --- Self-Healing Auto-Repair Integration ---
+            repair_res = repair_code(code_input)
+            if repair_res.repaired:
+                with st.expander("🛠️ Self-Healing Auto-Repair (1-Click Fix)", expanded=True):
+                    st.success(f"Auto-repair engine synthesized {len(repair_res.repaired_issues)} AST patch(es)!")
+                    for item in repair_res.repaired_issues:
+                        rule_name = item.get("rule") or item.get("type") or "Auto-Repair"
+                        st.markdown(f"- **{rule_name}**: {item['action']}")
+
+                    st.markdown("**Unified AST Diff:**")
+                    st.code(repair_res.diff, language="diff")
+
+                    st.markdown("**Repaired Code Preview:**")
+                    st.code(repair_res.repaired_code, language="python")
+
+                    if st.button("Apply Repaired Code to Editor", key="apply_repair_button", type="secondary"):
+                        st.session_state["code_editor_text"] = repair_res.repaired_code
+                        st.rerun()
+            elif verdict == "REJECT":
+                with st.expander("🛠️ Self-Healing Auto-Repair", expanded=False):
+                    st.info("No deterministic AST rewrite rule matches this defect pattern. Escalation to specialist synthesizer required.")
 
             with st.expander("Static Baseline Comparison (Pylint & Mypy)"):
                 if result["static_caught"]:

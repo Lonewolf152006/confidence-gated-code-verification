@@ -104,6 +104,48 @@ def load_model(model_key: str = "1.5B"):
     return tokenizer, model
 
 
+def clean_generated_code(text: str) -> str:
+    """
+    Strips markdown code fences and conversational preambles/fillers from generated code:
+      - Leading/trailing ```python or ``` code fences
+      - Conversational preamble before the first line of actual code
+    """
+    if not text:
+        return ""
+
+    # 1. Strip markdown fences if present
+    if "```python" in text:
+        text = text.split("```python", 1)[1]
+        if "```" in text:
+            text = text.split("```", 1)[0]
+    elif "```" in text:
+        parts = text.split("```")
+        if len(parts) >= 2:
+            text = parts[1]
+        elif "```" in text:
+            text = text.replace("```", "")
+
+    # 2. Strip conversational preamble before first line of actual code
+    lines = text.splitlines()
+    code_start_idx = 0
+    code_starters = (
+        "def ", "class ", "import ", "from ", "try:", "if ", "for ", "while ",
+        "with ", "return ", "@", "#", "print(", "raise "
+    )
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith(code_starters) or "=" in stripped:
+            code_start_idx = i
+            break
+        if any(stripped.lower().startswith(p) for p in ("sure", "here is", "here's", "below is", "certainly", "the function")):
+            continue
+
+    cleaned = "\n".join(lines[code_start_idx:]).rstrip()
+    return cleaned
+
+
 def generate_with_logprobs(
     tokenizer,
     model,
@@ -117,7 +159,7 @@ def generate_with_logprobs(
 
     Returns:
         dict with keys:
-          - generated_code: str
+          - generated_code: str (cleaned of fences & filler)
           - topk_logprobs: list of {tokens, probs, token_ids}
           - prompt_token_count: int
           - generated_token_count: int
@@ -151,9 +193,11 @@ def generate_with_logprobs(
     # Extract generated tokens (excluding prompt)
     generated_ids = out.sequences[0][prompt_len:].cpu()
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    cleaned_code = clean_generated_code(generated_text)
 
-    # Build offset mapping for the generated text in one fast call
-    enc = tokenizer(generated_text, return_offsets_mapping=True, add_special_tokens=False)
+    # Build offset mapping for the cleaned generated text
+    target_text = cleaned_code if cleaned_code else generated_text
+    enc = tokenizer(target_text, return_offsets_mapping=True, add_special_tokens=False)
     gen_offset_mapping = enc.get("offset_mapping", [])
 
     # Extract top-K logprobs per generated token vectorized on GPU
@@ -176,7 +220,7 @@ def generate_with_logprobs(
             })
 
     return {
-        "generated_code": generated_text,
+        "generated_code": cleaned_code,
         "topk_logprobs": topk_logprobs,
         "prompt_token_count": prompt_len,
         "generated_token_count": len(generated_ids),

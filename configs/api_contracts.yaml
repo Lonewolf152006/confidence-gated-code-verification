@@ -1,0 +1,127 @@
+# configs/api_contracts.yaml
+# Declarative Specification for Usage-Semantic API Contracts and Auto-Repairs
+
+version: "1.0"
+contracts:
+  - id: "requests_subscript_without_json"
+    library: "requests"
+    severity: "HIGH"
+    category: "USAGE_SEMANTIC"
+    description: "Subscripting a requests.Response object directly (resp['key']) without calling .json()."
+    root_cause: "Response objects are HTTP wrappers and do not implement the __getitem__ mapping protocol."
+    ast_pattern: "Subscript(value=Name(type='requests_response'))"
+    auto_repair:
+      action: "inject_method_call"
+      target: "value"
+      method: "json"
+      example:
+        bad: "resp['data']"
+        good: "resp.json()['data']"
+
+  - id: "requests_missing_parentheses_json"
+    library: "requests"
+    severity: "HIGH"
+    category: "USAGE_SEMANTIC"
+    description: "Subscripting response.json as an attribute without parentheses (resp.json['key'])."
+    root_cause: ".json is a method returning parsed JSON, not a dictionary attribute."
+    ast_pattern: "Subscript(value=Attribute(value=Name(type='requests_response'), attr='json'))"
+    auto_repair:
+      action: "call_method"
+      target: "value"
+      example:
+        bad: "resp.json['data']"
+        good: "resp.json()['data']"
+
+  - id: "requests_text_called_as_function"
+    library: "requests"
+    severity: "HIGH"
+    category: "USAGE_SEMANTIC"
+    description: "Calling response.text() as a function instead of accessing the string property."
+    root_cause: ".text is a decoded unicode string property; calling it raises TypeError: 'str' object is not callable."
+    ast_pattern: "Call(func=Attribute(value=Name(type='requests_response'), attr='text'))"
+    auto_repair:
+      action: "remove_call_parentheses"
+      example:
+        bad: "raw_html = resp.text()"
+        good: "raw_html = resp.text"
+
+  - id: "pandas_inplace_none_assignment"
+    library: "pandas"
+    severity: "CRITICAL"
+    category: "STATE_MUTATION"
+    description: "Assigning the result of an inplace DataFrame method call (df = df.dropna(inplace=True))."
+    root_cause: "Inplace mutations in pandas return None by convention. Assigning back wipes out the DataFrame to None."
+    ast_pattern: "Assign(targets=[Name(id=X)], value=Call(func=Attribute(value=Name(id=X), attr in ['dropna', 'drop', 'fillna', 'reset_index', 'sort_values']), keywords=[inplace=True]))"
+    auto_repair:
+      action: "remove_keyword_arg"
+      arg: "inplace"
+      example:
+        bad: "df = df.dropna(inplace=True)"
+        good: "df = df.dropna()"
+
+  - id: "pandas_obsolete_sort"
+    library: "pandas"
+    severity: "HIGH"
+    category: "DEPRECATED_API"
+    description: "Calling obsolete DataFrame.sort() method removed in modern pandas."
+    root_cause: "df.sort() was deprecated in pandas 0.17 and removed in 0.20+ in favor of df.sort_values()."
+    ast_pattern: "Call(func=Attribute(value=Name(type='pandas_obj'), attr='sort'))"
+    auto_repair:
+      action: "rename_method"
+      target_attr: "sort_values"
+      example:
+        bad: "df.sort('score', ascending=False)"
+        good: "df.sort_values('score', ascending=False)"
+
+  - id: "pandas_removed_append"
+    library: "pandas"
+    severity: "CRITICAL"
+    category: "REMOVED_API"
+    description: "Calling DataFrame.append() which was completely removed in Pandas 2.0+."
+    root_cause: "DataFrame.append() was quadratic in memory and removed in Pandas 2.0 in favor of pd.concat()."
+    ast_pattern: "Call(func=Attribute(value=Name(type='pandas_obj'), attr='append'))"
+    auto_repair:
+      action: "rewrite_to_pd_concat"
+      example:
+        bad: "df.append(other_df, ignore_index=True)"
+        good: "pd.concat([df, other_df], ignore_index=True)"
+
+  - id: "numpy_abs_vector_norm_misuse"
+    library: "numpy"
+    severity: "HIGH"
+    category: "MATHEMATICAL_LOGIC"
+    description: "Calling np.abs() on a vector or coordinate array where Euclidean norm/magnitude was intended."
+    root_cause: "np.abs() computes element-wise absolute values, diverging fundamentally from Euclidean length sqrt(sum(x^2))."
+    ast_pattern: "Call(func=Attribute(value=Name(id='np'), attr='abs'), args=[vector_or_diff])"
+    auto_repair:
+      action: "replace_with_norm"
+      replacement: "np.linalg.norm"
+      example:
+        bad: "magnitude = np.abs(velocity_vector)"
+        good: "magnitude = np.linalg.norm(velocity_vector)"
+
+  - id: "reshape_on_dict_list"
+    library: "numpy"
+    severity: "HIGH"
+    category: "TYPE_ERROR"
+    description: "Calling .reshape() directly on a Python list, comprehension, or dict value without array casting."
+    root_cause: "Built-in Python lists and dict values do not have a .reshape() method; raises AttributeError."
+    ast_pattern: "Call(func=Attribute(value=Type('python_list'), attr='reshape'))"
+    auto_repair:
+      action: "wrap_with_np_array"
+      example:
+        bad: "matrix = [x * 2 for x in data].reshape(3, 3)"
+        good: "matrix = np.array([x * 2 for x in data]).reshape(3, 3)"
+
+  - id: "hexdigest_on_bytes"
+    library: "hashlib"
+    severity: "HIGH"
+    category: "CONTRACT_VIOLATION"
+    description: "Calling .hexdigest() on bytes returned by .digest() or on a byte variable."
+    root_cause: "hashlib.digest() returns raw bytes; .hexdigest() is a method on the Hash object, not on bytes."
+    ast_pattern: "Call(func=Attribute(value=Call(func=Attribute(attr='digest')), attr='hexdigest'))"
+    auto_repair:
+      action: "bypass_digest_call"
+      example:
+        bad: "token = h.digest().hexdigest()"
+        good: "token = h.hexdigest()"

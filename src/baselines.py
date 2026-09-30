@@ -37,7 +37,7 @@ def run_pylint(code: str) -> list[str]:
         path = f.name
     try:
         result = subprocess.run(
-            ["pylint", "--disable=all",
+            [sys.executable, "-m", "pylint", "--disable=all",
              "--enable=undefined-variable,no-member,unsubscriptable-object,"
              "unsupported-assignment-operation,no-value-for-parameter,"
              "unexpected-keyword-arg,too-many-function-args",
