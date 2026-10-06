@@ -312,7 +312,15 @@ def main():
                         help="Force 4-bit quantization (for smaller GPUs)")
     parser.add_argument("--limit", type=int, default=None,
                         help="Limit number of tasks to process (e.g. 50)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility (default: 42)")
     args = parser.parse_args()
+
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
+        np.random.seed(args.seed)
 
     print("=" * 60)
     print("  Code Generation Pipeline")

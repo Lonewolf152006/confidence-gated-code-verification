@@ -120,4 +120,10 @@ def run_audit(labels_path: Path):
 
 
 if __name__ == "__main__":
-    run_audit(LABELS_PATH)
+    import argparse
+    parser = argparse.ArgumentParser(description="Audit execution failure breakdown")
+    parser.add_argument("--input", type=str, default=str(LABELS_PATH),
+                        help="Path to labeled JSON dataset")
+    args = parser.parse_args()
+    run_audit(Path(args.input))
+

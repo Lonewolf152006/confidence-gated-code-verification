@@ -1,0 +1,3 @@
+Model,Pass Rate,Intent Misuse Rate,Router AUROC,Router AUPRC,Router F1,Cascade Accuracy @ 50% escalation,Note
+Qwen2.5-Coder-1.5B,15.0%,7.0%,1.000,1.000,0.833,93.0%,PILOT-SCALE (10 tasks) — not yet validated at full 665-task scale.
+Qwen2.5-Coder-7B,22.0%,0.0%,1.000,1.000,0.000,100.0%,PILOT-SCALE (10 tasks) — not yet validated at full 665-task scale.

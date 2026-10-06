@@ -1,0 +1,14 @@
+% PILOT-SCALE (10 tasks) — not yet validated at full 665-task scale.
+\begin{table}[htbp]
+\centering
+\caption{Empirical Comparison of Verification Cascade Performance Across Model Scales. \textit{PILOT-SCALE (10 tasks) — not yet validated at full 665-task scale.}}
+\label{tab:model_comparison_pilot}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Pass Rate} & \textbf{Intent Misuse Rate} & \textbf{Router AUROC} & \textbf{Router AUPRC} & \textbf{Router F1} & \textbf{Cascade Acc @ 50\%} \\
+\midrule
+Qwen2.5-Coder-1.5B & 15.0\% & 7.0\% & 1.000 & 1.000 & 0.833 & 93.0\% \\
+Qwen2.5-Coder-7B   & 22.0\% & 0.0\% & 1.000 & 1.000 & 0.000 & 100.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
